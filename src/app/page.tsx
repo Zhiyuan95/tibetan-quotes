@@ -3,10 +3,26 @@
 import { useState, useEffect } from 'react';
 import { Hitokoto } from '@/types';
 
+interface Stats {
+  total: number;
+  categories: Record<string, number>;
+  averageLength: number;
+  lastUpdate: string;
+}
+
 export default function Home() {
   const [data, setData] = useState<Hitokoto | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [format, setFormat] = useState('json');
   const [loading, setLoading] = useState(true);
+
+  // Fetch stats
+  useEffect(() => {
+    fetch('/api/v1/stats')
+      .then(res => res.json())
+      .then(setStats)
+      .catch(console.error);
+  }, []);
 
   // Example fetcher for the demo console
   const fetchDemo = async () => {
@@ -29,7 +45,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchDemo();
-  }, []);
+  }, [format]);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans selection:bg-purple-100">
@@ -110,6 +126,100 @@ export default function Home() {
             </div>
         </section>
 
+        {/* Statistics Section */}
+        {stats && (
+          <section className="mb-24">
+            <h2 className="text-2xl font-bold mb-6">API Statistics</h2>
+            <div className="grid md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white p-6 rounded-xl border border-neutral-200">
+                <div className="text-3xl font-bold text-purple-700">{stats.total}</div>
+                <div className="text-sm text-neutral-500 mt-1">Total Quotes</div>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-neutral-200">
+                <div className="text-3xl font-bold text-purple-700">{Object.keys(stats.categories).length}</div>
+                <div className="text-sm text-neutral-500 mt-1">Categories</div>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-neutral-200">
+                <div className="text-3xl font-bold text-purple-700">{stats.averageLength}</div>
+                <div className="text-sm text-neutral-500 mt-1">Avg Length (chars)</div>
+              </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-xl border border-neutral-200">
+              <h3 className="font-semibold mb-4 text-neutral-700">Available Categories</h3>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(stats.categories)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([cat, count]) => (
+                    <span key={cat} className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm">
+                      {cat} ({count})
+                    </span>
+                  ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Usage Examples */}
+        <section className="mb-24">
+          <h2 className="text-2xl font-bold mb-6">Usage Examples</h2>
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+              <div className="bg-neutral-50 px-4 py-2 border-b border-neutral-200 font-semibold text-sm text-neutral-700">
+                cURL
+              </div>
+              <pre className="p-4 text-sm overflow-x-auto">
+                <code className="text-neutral-800">{`# Get random quote
+curl "https://your-domain.com/api/v1/sentence"
+
+# Get quote from specific categories
+curl "https://your-domain.com/api/v1/sentence?c=信心&c=实修"
+
+# Get as plain text
+curl "https://your-domain.com/api/v1/sentence?encode=text"
+
+# JSONP callback
+curl "https://your-domain.com/api/v1/sentence?encode=json&callback=myCallback"`}</code>
+              </pre>
+            </div>
+
+            <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+              <div className="bg-neutral-50 px-4 py-2 border-b border-neutral-200 font-semibold text-sm text-neutral-700">
+                JavaScript
+              </div>
+              <pre className="p-4 text-sm overflow-x-auto">
+                <code className="text-neutral-800">{`// Fetch random quote
+fetch('https://your-domain.com/api/v1/sentence')
+  .then(res => res.json())
+  .then(data => console.log(data.hitokoto));
+
+// With specific category
+fetch('https://your-domain.com/api/v1/sentence?c=Moments')
+  .then(res => res.json())
+  .then(data => console.log(data));`}</code>
+              </pre>
+            </div>
+
+            <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+              <div className="bg-neutral-50 px-4 py-2 border-b border-neutral-200 font-semibold text-sm text-neutral-700">
+                Python
+              </div>
+              <pre className="p-4 text-sm overflow-x-auto">
+                <code className="text-neutral-800">{`import requests
+
+# Get random quote
+response = requests.get('https://your-domain.com/api/v1/sentence')
+quote = response.json()
+print(quote['hitokoto'])
+
+# Get statistics
+stats = requests.get('https://your-domain.com/api/v1/stats').json()
+print(f"Total quotes: {stats['total']}")`}</code>
+              </pre>
+            </div>
+          </div>
+        </section>
+
         {/* Documentation API Reference */}
         <section id="docs" className="prose prose-neutral max-w-none">
             <h2 className="text-3xl font-bold mb-8 border-b pb-4">API Reference</h2>
@@ -133,21 +243,53 @@ export default function Home() {
                         <tbody>
                             <tr className="border-b border-neutral-100">
                                 <td className="py-3 font-mono text-purple-600">c</td>
-                                <td>string</td>
-                                <td className="text-neutral-500">Category (e.g., 'Wisdom', 'Karma')</td>
+                                <td>string[]</td>
+                                <td className="text-neutral-500">Categories (multi-select: ?c=信心&c=实修)</td>
                             </tr>
                              <tr className="border-b border-neutral-100">
                                 <td className="py-3 font-mono text-purple-600">encode</td>
                                 <td>string</td>
-                                <td className="text-neutral-500">Return format: `json` (default), `text`, `js`</td>
+                                <td className="text-neutral-500">Format: json (default), text, js</td>
                             </tr>
-                            <tr>
+                            <tr className="border-b border-neutral-100">
+                                <td className="py-3 font-mono text-purple-600">callback</td>
+                                <td>string</td>
+                                <td className="text-neutral-500">JSONP callback function name</td>
+                            </tr>
+                            <tr className="border-b border-neutral-100">
+                                <td className="py-3 font-mono text-purple-600">min_length</td>
+                                <td>int</td>
+                                <td className="text-neutral-500">Minimum characters (default: 0)</td>
+                            </tr>
+                            <tr className="border-b border-neutral-100">
                                 <td className="py-3 font-mono text-purple-600">max_length</td>
                                 <td>int</td>
-                                <td className="text-neutral-500">Max characters (0-1000)</td>
+                                <td className="text-neutral-500">Maximum characters (default: 1000)</td>
+                            </tr>
+                            <tr className="border-b border-neutral-100">
+                                <td className="py-3 font-mono text-purple-600">select</td>
+                                <td>string</td>
+                                <td className="text-neutral-500">CSS selector (for encode=js)</td>
+                            </tr>
+                            <tr>
+                                <td className="py-3 font-mono text-purple-600">charset</td>
+                                <td>string</td>
+                                <td className="text-neutral-500">Encoding: utf-8 (default), gbk 🚧</td>
                             </tr>
                         </tbody>
                     </table>
+
+                    <h4 className="font-bold mt-6 mb-2 text-sm uppercase text-neutral-400">Error Codes</h4>
+                    <div className="text-sm space-y-2">
+                        <div className="flex gap-2">
+                            <span className="font-mono text-red-600">404</span>
+                            <span className="text-neutral-500">No quotes found matching criteria</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <span className="font-mono text-red-600">500</span>
+                            <span className="text-neutral-500">Database query failed or internal error</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div>

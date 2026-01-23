@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import iconv from 'iconv-lite';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 2; // Cache for 2 seconds
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,6 +14,7 @@ export async function GET(request: Request) {
   const minLength = parseInt(searchParams.get('min_length') || '0');
   const maxLength = parseInt(searchParams.get('max_length') || '1000');
   const callback = searchParams.get('callback');
+  const charset = (searchParams.get('charset') || 'utf-8').toLowerCase();
 
   try {
     // 构建查询
@@ -69,7 +72,16 @@ export async function GET(request: Request) {
 
     // 返回格式处理
     if (encode === 'text') {
-      return new NextResponse(responseData.hitokoto, {
+      const textContent = responseData.hitokoto;
+      
+      if (charset === 'gbk') {
+        const gbkBuffer = iconv.encode(textContent, 'gbk');
+        return new NextResponse(new Uint8Array(gbkBuffer), {
+          headers: { 'Content-Type': 'text/plain; charset=gbk' }
+        });
+      }
+      
+      return new NextResponse(textContent, {
         headers: { 'Content-Type': 'text/plain; charset=utf-8' }
       });
     }
@@ -77,6 +89,14 @@ export async function GET(request: Request) {
     if (encode === 'js') {
       const selector = searchParams.get('select') || '.hitokoto';
       const jsContent = `(function(){var hitokoto="${responseData.hitokoto.replace(/"/g, '\\"')}";var dom=document.querySelector('${selector}');if(dom){dom.innerText=hitokoto;}})();`;
+      
+      if (charset === 'gbk') {
+        const gbkBuffer = iconv.encode(jsContent, 'gbk');
+        return new NextResponse(new Uint8Array(gbkBuffer), {
+          headers: { 'Content-Type': 'text/javascript; charset=gbk' }
+        });
+      }
+      
       return new NextResponse(jsContent, {
         headers: { 'Content-Type': 'text/javascript; charset=utf-8' }
       });
