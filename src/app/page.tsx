@@ -12,7 +12,7 @@ export default function Home() {
   const fetchDemo = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/v1/sentence?c=Wisdom&encode=${format === 'text' ? 'text' : 'json'}`);
+      const res = await fetch(`/api/v1/sentence?encode=${format === 'text' ? 'text' : 'json'}`);
       if (format === 'text') {
         const text = await res.text();
         setData({ hitokoto: text, from_who: 'API', type: 'text', from: 'API', id: 0 }); // Mock for display
